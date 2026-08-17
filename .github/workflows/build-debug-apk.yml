@@ -21,34 +21,83 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Setup Android SDK & NDK
         uses: android-actions/setup-android@v3
 
-      - name: Create Dummy local.properties / env if needed
+      - name: Install Android NDK & CMake
         run: |
-          touch local.properties
-          touch .env
+          yes | sdkmanager --licenses || true
+          sdkmanager "cmake;3.22.1" "ndk;28.2.13676358" || true
 
-      - name: Grant Execute Permission for Gradle Wrapper
+      - name: Setup Gradle 8.12
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.12'
+          cache-disabled: false
+
+      - name: Restore Keystore & Configuration Files
         run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
+          # 1. Restore debug.keystore from base64 if present, else generate with keytool
+          if [ -f debug.keystore.base64 ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "Decoded debug.keystore from base64"
+          elif [ ! -f debug.keystore ]; then
+            keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+            echo "Generated fallback debug.keystore"
+          fi
+
+          # 2. Create .env from .env.example or empty if missing
+          if [ -f .env.example ] && [ ! -f .env ]; then
+            cp .env.example .env
+          else
+            touch .env
+          fi
+
+          # 3. Create dummy google-services.json if needed
+          mkdir -p app/src/debug
+          if [ ! -f app/google-services.json ] && [ ! -f app/src/debug/google-services.json ]; then
+            cat << 'EOF' > app/google-services.json
+          {
+            "project_info": {
+              "project_number": "1234567890",
+              "project_id": "dummy-project",
+              "storage_bucket": "dummy.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:1234567890:android:abcdef",
+                  "android_client_info": {
+                    "package_name": "com.aistudio.supernova.iclujf"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "dummy_api_key"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
           fi
 
       - name: Build Debug APK with Gradle
         run: |
-          if [ -f gradlew ]; then
-            ./gradlew assembleDebug --stacktrace
-          else
-            gradle assembleDebug --stacktrace
-          fi
+          gradle :app:assembleDebug --stacktrace --no-configuration-cache
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
