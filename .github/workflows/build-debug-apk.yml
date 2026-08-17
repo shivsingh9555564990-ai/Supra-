@@ -30,10 +30,10 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "cmake;3.22.1" "ndk;28.2.13676358" || true
 
-      - name: Setup Gradle 8.12
+      - name: Setup Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.12'
+          gradle-version: '9.3.1'
           cache-disabled: false
 
       - name: Restore Keystore & Configuration Files
@@ -92,7 +92,7 @@ jobs:
 
       - name: Build Debug APK with Gradle
         run: |
-          gradle :app:assembleDebug --stacktrace --no-configuration-cache
+          gradle :app:assembleDebug --stacktrace -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
