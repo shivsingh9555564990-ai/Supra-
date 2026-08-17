@@ -1,0 +1,8 @@
+{
+  "name": "Remix SuperNova",
+  "description": "An offline Edge AI app with an Indian Cyberpunk theme.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

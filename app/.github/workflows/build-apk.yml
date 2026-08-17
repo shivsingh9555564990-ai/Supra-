@@ -1,0 +1,61 @@
+name: Build and Release APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Generate temporary debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Build debug APK
+        run: gradle app:assembleDebug --stacktrace --no-daemon
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: v1.0.${{ github.run_number }}-${{ github.run_attempt }}
+          name: v1.0.${{ github.run_number }}-${{ github.run_attempt }}
+          target_commitish: ${{ github.sha }}
+          files: app/build/outputs/apk/debug/app-debug.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Report Release Status
+        if: always()
+        run: |
+          if [ "${{ steps.create_release.outcome }}" == "success" ]; then
+            echo "✅ Release published successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Release publishing failed. But don't worry, the APK artifact is still available for download from the Artifacts section above!" >> $GITHUB_STEP_SUMMARY
+          fi
